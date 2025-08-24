@@ -25,7 +25,7 @@ const CATEGORIES = [
   { key: "govcon", label: "GovCon", color: "bg-blue-100 text-blue-800 border-blue-200" },
   { key: "product", label: "Product", color: "bg-green-100 text-green-800 border-green-200" },
   { key: "fundraise", label: "Raise", color: "bg-red-100 text-red-800 border-red-200" },
-] as const;
+];
 
 const categoryLabel = (k) => CATEGORIES.find((c) => c.key === k)?.label ?? k;
 const categoryClass = (k) => CATEGORIES.find((c) => c.key === k)?.color ?? "bg-gray-100 text-gray-700 border-gray-200";
