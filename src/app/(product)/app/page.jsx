@@ -89,7 +89,7 @@ function splitArr(s){ if(!s) return []; return s.split(/\||;|\s*\,\s*/).map(x=>x
 // ---------- Main App ----------
 export default function TrackOpsApp(){
   const [tab, setTab] = useState('dashboard');
-  const [company, setCompany] = useState({ name: "Aethero (Demo)", naics: ["541715","334220"], keywords: ["SDA","edge","AI","Kubernetes","uplink"], stage: "Seed", capabilities: "Edge compute for space, ML on orbit, energy‑efficient comms" });
+  const [company, setCompany] = useState({ name: "Acme (Demo)", naics: ["541715","334220"], keywords: ["SDA","edge","AI","Kubernetes","uplink"], stage: "Seed", capabilities: "Edge compute for space, ML on orbit, energy‑efficient comms" });
   const [opps, setOpps] = useState(seedOpportunities);
   const [deadlines, setDeadlines] = useState(seedDeadlines);
 
@@ -288,9 +288,9 @@ export default function TrackOpsApp(){
           <NavButton icon={<Calendar className="h-4 w-4"/>} label="Planner" active={tab==='planner'} onClick={()=>setTab('planner')}/>
           <NavButton icon={<Bell className="h-4 w-4"/>} label="Integrations" active={tab==='integrations'} onClick={()=>setTab('integrations')}/>
           <NavButton icon={<SlidersHorizontal className="h-4 w-4"/>} label="Company Profile" active={tab==='company'} onClick={()=>setTab('company')}/>
-          <NavButton icon={<Settings className="h-4 w-4"/>} label="Settings" active={tab==='settings'} onClick={()=>setTab('settings')}/>
           <NavButton icon={<TableIcon className="h-4 w-4"/>} label="Sheets" active={tab==='sheets'} onClick={()=>setTab('sheets')}/>
           <NavButton icon={<ListTree className="h-4 w-4"/>} label="WBS" active={tab==='wbs'} onClick={()=>setTab('wbs')}/>
+          <NavButton icon={<Settings className="h-4 w-4"/>} label="Settings" active={tab==='settings'} onClick={()=>setTab('settings')}/>
         </aside>
 
         {/* Main */}
@@ -630,10 +630,13 @@ function SheetsLite({ sheet, setSheet }) {
     });
   };
 
-  const moveFocus = (r,c)=>{
-    const next = tableRef.current?.querySelector<HTMLInputElement>(`[data-rc="${r}-${c}"]`);
-    next?.focus();
+  const moveFocus = (r, c) => {
+    const root = tableRef.current;
+    if (!root) return;
+    const next = root.querySelector(`[data-rc="${r}-${c}"]`);
+    if (next && typeof next.focus === 'function') next.focus();
   };
+
   const onKey = (e, r, c)=>{
     if(e.key==="Enter"){ e.preventDefault(); moveFocus(Math.min(r+1, sheet.rows-1), c); }
     if(e.key==="Tab"){ e.preventDefault(); const nextC = e.shiftKey? Math.max(0,c-1): Math.min(sheet.cols-1,c+1); moveFocus(r, nextC); }
