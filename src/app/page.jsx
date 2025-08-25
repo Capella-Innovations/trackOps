@@ -98,7 +98,7 @@ export default function TrackOpsApp(){
 
   // Keyboard shortcuts
   const [showHelp, setShowHelp] = useState(false);
-  const quickAddRef = useRef>(null);
+  const quickAddRef = useRef(null);
   const oppSearchRef = useRef(null);
   const gArmedRef = useRef(false);
   const gTimerRef = useRef(null);
@@ -326,7 +326,12 @@ export default function TrackOpsApp(){
               <section className="bg-white rounded-xl border border-slate-200 p-4">
                 <h2 className="font-semibold text-slate-900 mb-3">Quick Add</h2>
                 <div className="grid md:grid-cols-6 gap-3">
-                  <input className="px-3 py-2 rounded-md border border-slate-300 text-sm md:col-span-2" ref={quickAddRef} placeholder={cuiSafe?"Generic title (no CUI)":"Title"} value={newDeadline.title} onChange={(e)=>setNewDeadline({...newDeadline, title:e.target.value})}/>
+                  <input className="px-3 py-2 rounded-md border border-slate-300 text-sm md:col-span-2" 
+                    ref={(el) => { quickAddInputRef.current = el; }}
+                    placeholder={cuiSafe?"Generic title (no CUI)":"Title"} 
+                    value={newDeadline.title} 
+                    onChange={(e)=>setNewDeadline({...newDeadline, title:e.target.value})}
+                  />
                   <input type="date" className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={newDeadline.date} onChange={(e)=>setNewDeadline({...newDeadline, date:e.target.value})}/>
                   <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={newDeadline.category} onChange={(e)=>setNewDeadline({...newDeadline, category:e.target.value})}>{allCategories.map(c=> <option key={c.key} value={c.key}>{c.label}</option>)}</select>
                   <input className="px-3 py-2 rounded-md border border-slate-300 text-sm md:col-span-2" placeholder={cuiSafe?"Enclave link (sharepoint.us, azure.us, .mil)":"URL (optional)"} value={newDeadline.url} onChange={(e)=>setNewDeadline({...newDeadline, url:e.target.value})}/>
@@ -341,7 +346,12 @@ export default function TrackOpsApp(){
             <section className="space-y-4">
               <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <input className="px-3 py-2 rounded-md border border-slate-300 text-sm"  ref={oppSearchRef} placeholder="Search title/topic/keywords…" value={filters.query} onChange={(e)=>setFilters({ ...filters, query: e.target.value })}/>
+                  <input className="px-3 py-2 rounded-md border border-slate-300 text-sm"  
+                    ref={(el) => { oppSearchRef.current = el; }}
+                    placeholder="Search title/topic/keywords…" 
+                    value={filters.query} 
+                    onChange={(e)=>setFilters({ ...filters, query: e.target.value })}
+                  />
                   <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={filters.agency} onChange={(e)=>setFilters({ ...filters, agency: e.target.value })}><option value="">Any Agency</option>{[...new Set(opps.map(o=>o.agency))].map(a=> <option key={a} value={a}>{a}</option>)}</select>
                   <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={filters.source} onChange={(e)=>setFilters({ ...filters, source: e.target.value })}><option value="">Any Source</option>{[...new Set(opps.map(o=>o.source))].map(s=> <option key={s} value={s}>{s}</option>)}</select>
                   <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={filters.naics} onChange={(e)=>setFilters({ ...filters, naics: e.target.value })}><option value="">Any NAICS</option>{[...new Set(opps.flatMap(o=>o.naics||[]))].map(n=> <option key={n} value={n}>{n}</option>)}</select>
