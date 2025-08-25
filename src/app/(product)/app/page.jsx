@@ -155,33 +155,6 @@ export default function TrackOpsApp(){
         setTimeout(() => oppSearchRef.current?.focus(), 0);
       }
     };
-
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      if (gTimerRef.current) clearTimeout(gTimerRef.current);
-      if (e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        setTab('dashboard');
-        setTimeout(() => quickAddRef.current?.focus(), 0);
-        return;
-      }
-
-      if (e.key === '/') {
-        e.preventDefault();
-        setTab('opportunities');
-        setTimeout(() => oppSearchRef.current?.focus(), 0);
-        return;
-      }
-
-      // g + [d/o/p/i/c/s/w]
-      if (e.key.toLowerCase() === 'g') {
-        gArmedRef.current = true;
-        if (gTimerRef.current) clearTimeout(gTimerRef.current);
-        gTimerRef.current = setTimeout(() => { gArmedRef.current = false; }, 1000);
-        return;
-      }
-    };
   }, []);
   // Categories: defaults + user customizations
   const [customCategories, setCustomCategories] = useState([]); // {key,label,color}
