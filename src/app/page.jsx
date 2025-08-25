@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from "react";
-import { Download, Calendar, Plus, Filter, Bell, Building2, Link as LinkIcon, CheckCircle2, XCircle, ExternalLink, ClipboardList, Settings, SlidersHorizontal, Upload, Trash2, ChevronLeft, ChevronRight, ShieldCheck, AlertTriangle } from "lucide-react";
-
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import {
+  Download, Calendar, Plus, Filter, Bell, Building2, Link as LinkIcon,
+  CheckCircle2, XCircle, ExternalLink, ClipboardList, Settings,
+  SlidersHorizontal, Upload, Trash2, ChevronLeft, ChevronRight,
+  ShieldCheck, AlertTriangle,
+  Table as TableIcon, ListTree, Keyboard
+} from "lucide-react";
 /**
  * TrackOps MVP — Single-file React app (frontend only)
  * ---------------------------------------------------
@@ -69,7 +74,12 @@ function inDays(n){ const d=new Date(); d.setDate(d.getDate()+n); return d.toISO
 function prettyDate(iso){ const d=new Date(iso+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
 function daysUntil(iso){ const now=new Date(); const d=new Date(iso+"T00:00:00"); return Math.ceil((d-now)/86400000); }
 function groupByMonth(deadlines){ const groups={}; for(const dl of deadlines){ const key=new Date(dl.date+"T00:00:00").toLocaleDateString(undefined,{month:"long",year:"numeric"}); (groups[key] ||= []).push(dl);} return groups; }
-function download(filename, text){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:"text/calendar;charset=utf-8"})); a.download=filename; a.click(); }
+function download(filename, text, mime='text/plain') {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: `${mime};charset=utf-8` }));
+  a.download = filename;
+  a.click();
+}
 function makeUid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36); }
 function escapeICS(text){ return (text||"").replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;"); }
 function toICS(deadlines){ const dtstamp=new Date().toISOString().replace(/[-:]/g,"").split(".")[0]+"Z"; const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//TrackOps//MVP//EN"]; for(const d of deadlines){ const dt=d.date.replace(/-/g,""); const uid=(d.id||makeUid())+"@trackops"; const sum=`${d.title}${d.category?` [${d.category}]`:''}`; const desc=(d.url?`View: ${d.url}`:"")+(d.tags?.length?`\nTags: ${d.tags.join(', ')}`:""); L.push("BEGIN:VEVENT",`UID:${uid}`,`DTSTAMP:${dtstamp}`,`DTSTART;VALUE=DATE:${dt}`,`DTEND;VALUE=DATE:${dt}`,`SUMMARY:${escapeICS(sum)}`,`DESCRIPTION:${escapeICS(desc)}`,"END:VEVENT"); } L.push("END:VCALENDAR"); return L.join("\r\n"); }
@@ -83,11 +93,96 @@ export default function TrackOpsApp(){
   const [opps, setOpps] = useState(seedOpportunities);
   const [deadlines, setDeadlines] = useState(seedDeadlines);
 
+  const [sheet, setSheet] = useState(() => makeBlankSheet(10,5));
+  const [wbsItems, setWbsItems] = useState(seedWbs);
+
+  // Keyboard shortcuts
+  const [showHelp, setShowHelp] = useState(false);
+  const quickAddRef = useRef>(null);
+  const oppSearchRef = useRef(null);
+  const gArmedRef = useRef(false);
+  const gTimerRef = useRef(null);
+
   // CUI‑safe mode
   const [cuiSafe, setCuiSafe] = useState(false);
   useEffect(()=>{ const saved = localStorage.getItem('trackops:cuiSafe'); if(saved!==null) setCuiSafe(saved==='1'); },[]);
   useEffect(()=>{ localStorage.setItem('trackops:cuiSafe', cuiSafe?'1':'0'); },[cuiSafe]);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      const el = e.target;
+      const tag = (el?.tagName || '').toLowerCase();
+      const isTyping = el?.isContentEditable || ['input','textarea','select'].includes(tag);
+
+      // Toggle help
+      if (e.key === '?') {
+        if (!isTyping) { e.preventDefault(); setShowHelp(v => !v); }
+        return;
+      }
+
+      if (isTyping) return;
+
+      // g + [d/o/p/i/c/s/w] chord
+      if (e.key.toLowerCase() === 'g') {
+        gArmedRef.current = true;
+        if (gTimerRef.current) clearTimeout(gTimerRef.current);
+        gTimerRef.current = setTimeout(() => { gArmedRef.current = false; }, 1000);
+        return;
+      }
+      if (gArmedRef.current) {
+        const map = {
+          d:'dashboard', o:'opportunities', p:'planner',
+          i:'integrations', c:'company', s:'sheets', w:'wbs'
+        };
+        const t = map[e.key.toLowerCase()];
+        if (t) { e.preventDefault(); setTab(t); }
+        gArmedRef.current = false;
+        return;
+      }
+
+      // n => focus Quick Add title
+      if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        setTab('dashboard');
+        setTimeout(() => quickAddRef.current?.focus(), 0);
+        return;
+      }
+
+      // / => focus Opportunities search
+      if (e.key === '/') {
+        e.preventDefault();
+        setTab('opportunities');
+        setTimeout(() => oppSearchRef.current?.focus(), 0);
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (gTimerRef.current) clearTimeout(gTimerRef.current);
+      if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        setTab('dashboard');
+        setTimeout(() => quickAddRef.current?.focus(), 0);
+        return;
+      }
+
+      if (e.key === '/') {
+        e.preventDefault();
+        setTab('opportunities');
+        setTimeout(() => oppSearchRef.current?.focus(), 0);
+        return;
+      }
+
+      // g + [d/o/p/i/c/s/w]
+      if (e.key.toLowerCase() === 'g') {
+        gArmedRef.current = true;
+        if (gTimerRef.current) clearTimeout(gTimerRef.current);
+        gTimerRef.current = setTimeout(() => { gArmedRef.current = false; }, 1000);
+        return;
+      }
+    };
+  }, []);
   // Categories: defaults + user customizations
   const [customCategories, setCustomCategories] = useState([]); // {key,label,color}
   const allCategories = useMemo(()=>[...DEFAULT_CATEGORIES, ...customCategories], [customCategories]);
@@ -153,7 +248,13 @@ export default function TrackOpsApp(){
   }
 
   function removeDeadline(id){ setDeadlines(d=>d.filter(x=>x.id!==id)); }
-  function exportSelectedICS(ids){ const selected = deadlines.filter(d=>ids.includes(d.id)); if (!selected.length) return; download('trackops-deadlines.ics', toICS(selected)); }
+
+  function exportSelectedICS(ids){
+    const selected = deadlines.filter(d=>ids.includes(d.id));
+    if (!selected.length) return;
+    download('trackops-deadlines.ics', toICS(selected), 'text/calendar');
+  }
+
   function slackCurl(webhook, d){ const text = ("Reminder: "+d.title+" due "+prettyDate(d.date)+" ("+categoryLabel(d.category)+"). "+(d.url?d.url:" ")).trim(); const payload = JSON.stringify({ text }); return "curl -X POST -H 'Content-type: application/json' --data '"+ payload.replace(/'/g,"'\\''") +"' "+ (webhook||'https://hooks.slack.com/services/XXXX/XXXX/XXXX'); }
 
   return (
@@ -188,6 +289,8 @@ export default function TrackOpsApp(){
           <NavButton icon={<Bell className="h-4 w-4"/>} label="Integrations" active={tab==='integrations'} onClick={()=>setTab('integrations')}/>
           <NavButton icon={<SlidersHorizontal className="h-4 w-4"/>} label="Company Profile" active={tab==='company'} onClick={()=>setTab('company')}/>
           <NavButton icon={<Settings className="h-4 w-4"/>} label="Settings" active={tab==='settings'} onClick={()=>setTab('settings')}/>
+          <NavButton icon={<TableIcon className="h-4 w-4"/>} label="Sheets" active={tab==='sheets'} onClick={()=>setTab('sheets')}/>
+          <NavButton icon={<ListTree className="h-4 w-4"/>} label="WBS" active={tab==='wbs'} onClick={()=>setTab('wbs')}/>
         </aside>
 
         {/* Main */}
@@ -223,7 +326,7 @@ export default function TrackOpsApp(){
               <section className="bg-white rounded-xl border border-slate-200 p-4">
                 <h2 className="font-semibold text-slate-900 mb-3">Quick Add</h2>
                 <div className="grid md:grid-cols-6 gap-3">
-                  <input className="px-3 py-2 rounded-md border border-slate-300 text-sm md:col-span-2" placeholder={cuiSafe?"Generic title (no CUI)":"Title"} value={newDeadline.title} onChange={(e)=>setNewDeadline({...newDeadline, title:e.target.value})}/>
+                  <input className="px-3 py-2 rounded-md border border-slate-300 text-sm md:col-span-2" ref={quickAddRef} placeholder={cuiSafe?"Generic title (no CUI)":"Title"} value={newDeadline.title} onChange={(e)=>setNewDeadline({...newDeadline, title:e.target.value})}/>
                   <input type="date" className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={newDeadline.date} onChange={(e)=>setNewDeadline({...newDeadline, date:e.target.value})}/>
                   <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={newDeadline.category} onChange={(e)=>setNewDeadline({...newDeadline, category:e.target.value})}>{allCategories.map(c=> <option key={c.key} value={c.key}>{c.label}</option>)}</select>
                   <input className="px-3 py-2 rounded-md border border-slate-300 text-sm md:col-span-2" placeholder={cuiSafe?"Enclave link (sharepoint.us, azure.us, .mil)":"URL (optional)"} value={newDeadline.url} onChange={(e)=>setNewDeadline({...newDeadline, url:e.target.value})}/>
@@ -238,7 +341,7 @@ export default function TrackOpsApp(){
             <section className="space-y-4">
               <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <input className="px-3 py-2 rounded-md border border-slate-300 text-sm" placeholder="Search title/topic/keywords…" value={filters.query} onChange={(e)=>setFilters({ ...filters, query: e.target.value })}/>
+                  <input className="px-3 py-2 rounded-md border border-slate-300 text-sm"  ref={oppSearchRef} placeholder="Search title/topic/keywords…" value={filters.query} onChange={(e)=>setFilters({ ...filters, query: e.target.value })}/>
                   <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={filters.agency} onChange={(e)=>setFilters({ ...filters, agency: e.target.value })}><option value="">Any Agency</option>{[...new Set(opps.map(o=>o.agency))].map(a=> <option key={a} value={a}>{a}</option>)}</select>
                   <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={filters.source} onChange={(e)=>setFilters({ ...filters, source: e.target.value })}><option value="">Any Source</option>{[...new Set(opps.map(o=>o.source))].map(s=> <option key={s} value={s}>{s}</option>)}</select>
                   <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={filters.naics} onChange={(e)=>setFilters({ ...filters, naics: e.target.value })}><option value="">Any NAICS</option>{[...new Set(opps.flatMap(o=>o.naics||[]))].map(n=> <option key={n} value={n}>{n}</option>)}</select>
@@ -409,6 +512,9 @@ export default function TrackOpsApp(){
               </div>
             </section>
           )}
+
+          {tab==='sheets' && (<SheetsLite sheet={sheet} setSheet={setSheet} />)}
+          {tab==='wbs' && (<WBSEditor items={wbsItems} setItems={setWbsItems} />)}
         </main>
       </div>
 
@@ -484,7 +590,8 @@ function SheetsLite({ sheet, setSheet }) {
       }).join(","))
       .join(`\n`);
   };
-  const exportCSV = ()=> download("trackops-sheet.csv", toCSV());
+
+  const exportCSV = ()=> download("trackops-sheet.csv", toCSV(), 'text/csv');
 
   const importCSV = (text)=>{
     const lines = text.split(String.fromCharCode(10)).filter(Boolean);
@@ -614,7 +721,7 @@ function WBSEditor({ items, setItems }) {
   const exportCSV = ()=>{
     const rows = numbered.map(it=> [it.number, " ".repeat((it.level||0)*2)+it.title, it.owner||"", it.due||""]);
     const csv = ["WBS,Task,Owner,Due", ...rows.map(r=> r.map(v=> v.includes(",")?(`"${v.split('"').join('""')}"`):v).join(","))].join(`\n`);
-    download("trackops-wbs.csv", csv);
+    download("trackops-wbs.csv", csv, 'text/csv');
   };
 
   const onKey = (e, index)=>{
