@@ -580,12 +580,12 @@ function SheetsLite({ sheet, setSheet }) {
 
 // ---------- WBS Editor ----------
 const seedWbs = [
-  { id: uid(), title: "Proposal", level: 0, owner: "", due: inDays(21) },
-  { id: uid(), title: "Capture plan", level: 1, owner: "Chris", due: inDays(20) },
-  { id: uid(), title: "Technical Volume", level: 1, owner: "Mina", due: inDays(14) },
-  { id: uid(), title: "System architecture", level: 2, owner: "Mina", due: inDays(10) },
-  { id: uid(), title: "Cost Volume (sanitized title)", level: 1, owner: "", due: inDays(13) },
-  { id: uid(), title: "Submission", level: 0, owner: "", due: inDays(12) },
+  { id: makeUid(), title: "Proposal", level: 0, owner: "", due: inDays(21) },
+  { id: makeUid(), title: "Capture plan", level: 1, owner: "Chris", due: inDays(20) },
+  { id: makeUid(), title: "Technical Volume", level: 1, owner: "Mina", due: inDays(14) },
+  { id: makeUid(), title: "System architecture", level: 2, owner: "Mina", due: inDays(10) },
+  { id: makeUid(), title: "Cost Volume (sanitized title)", level: 1, owner: "", due: inDays(13) },
+  { id: makeUid(), title: "Submission", level: 0, owner: "", due: inDays(12) },
 ];
 
 function WBSEditor({ items, setItems }) {  
@@ -599,11 +599,11 @@ function WBSEditor({ items, setItems }) {
   const numbered = renumber(items);
 
   const addSibling = (index)=>{
-    const base=items[index]; const newItem = { id: uid(), title:"New task", level: base.level, owner:"", due: inDays(14) };
+    const base=items[index]; const newItem = { id: makeUid(), title:"New task", level: base.level, owner:"", due: inDays(14) };
     const arr=[...items]; arr.splice(index+1,0,newItem); setItems(arr);
   };
   const addChild = (index)=>{
-    const base=items[index]; const newItem = { id: uid(), title:"Sub-task", level: (base.level||0)+1, owner:"", due: inDays(14) };
+    const base=items[index]; const newItem = { id: makeUid(), title:"Sub-task", level: (base.level||0)+1, owner:"", due: inDays(14) };
     const arr=[...items]; arr.splice(index+1,0,newItem); setItems(arr);
   };
   const indent = (index)=> setItems((arr)=> arr.map((it,i)=> i===index? {...it, level: Math.min(5,(it.level||0)+1)}: it));
@@ -629,7 +629,7 @@ function WBSEditor({ items, setItems }) {
       <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
         <h2 className="font-semibold text-slate-900 flex items-center gap-2"><ListTree className="h-5 w-5"/> WBS</h2>
         <div className="flex items-center gap-2 text-sm">
-          <button onClick={()=>setItems((items)=>[...items, { id: uid(), title:"New task", level:0, owner:"", due: inDays(14)}])} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300"><Plus className="h-4 w-4"/> Task</button>
+          <button onClick={()=>setItems((items)=>[...items, { id: makeUid(), title:"New task", level:0, owner:"", due: inDays(14)}])} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300"><Plus className="h-4 w-4"/> Task</button>
           <button onClick={exportCSV} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300"><Download className="h-4 w-4"/> Export CSV</button>
         </div>
       </div>
