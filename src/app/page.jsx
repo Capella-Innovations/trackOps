@@ -462,7 +462,253 @@ function CalendarMonth({ year, monthIndex, deadlines, categoryClass, categoryLab
     </div>
   );
 }
+// ---------- Sheets (Excel-like) ----------
+function makeBlankSheet(rows, cols){
+  const data = Array.from({length: rows}, ()=> Array.from({length: cols}, ()=>""));
+  return { rows, cols, data };
+}
+function colLabel(n){
+  let s=""; n++; while(n){ const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26);} return s;
+}
+function SheetsLite({ sheet, setSheet }, setSheet){
+  const tableRef = useRef<HTMLTableElement|null>(null);
+  const setCell = (r,c,val)=> setSheet((s)=>{ const d=s.data.map((row)=>row.slice()); d[r][c]=val; return {...s, data:d}; });
+  const addRow = ()=> setSheet((s)=> ({...s, rows:s.rows+1, data:[...s.data, Array.from({length:s.cols},()=>"")] }));
+  const addCol = ()=> setSheet((s)=> ({...s, cols:s.cols+1, data:s.data.map((row)=>[...row,""])}));
 
+  const toCSV = ()=>{
+    return sheet.data
+      .map(row=> row.map(v=>{
+        const needsQuote = v.includes(",") || v.includes("\"") || v.indexOf(String.fromCharCode(10))>-1;
+        return needsQuote ? `"${v.split("\"").join("\"\"")}"` : v;
+      }).join(","))
+      .join(`\n`);
+  };
+  const exportCSV = ()=> download("trackops-sheet.csv", toCSV());
+
+  const importCSV = (text)=>{
+    const lines = text.split(String.fromCharCode(10)).filter(Boolean);
+    const parsed = lines.map(line=> smartSplit(line));
+    const rows = parsed.length; const cols = Math.max(...parsed.map(r=>r.length));
+    const data = Array.from({length: rows}, (_,r)=> Array.from({length: cols}, (_,c)=> (parsed[r][c]||"") ));
+    setSheet({ rows, cols, data });
+  };
+
+  const onPasteGrid = (e, r, c)=>{
+    const text = e.clipboardData?.getData("text") || "";
+    if (!text || (text.indexOf(String.fromCharCode(10))===-1 && text.indexOf(String.fromCharCode(9))===-1 && text.indexOf(",")===-1)) return;
+    e.preventDefault();
+    const rows = text
+      .split(String.fromCharCode(10)).filter(x=>x.length>0)
+      .map(line=> line.split(String.fromCharCode(9)).flatMap(chunk=> chunk.split(",")));
+    setSheet((s)=>{
+      const d = s.data.map((row)=>row.slice());
+      for(let i=0;i<rows.length;i++){
+        for(let j=0;j<rows[i].length;j++){
+          const rr=r+i, cc=c+j;
+          if(rr<s.rows && cc<s.cols) d[rr][cc]=rows[i][j];
+        }
+      }
+      return {...s, data:d};
+    });
+  };
+
+  const moveFocus = (r,c)=>{
+    const next = tableRef.current?.querySelector<HTMLInputElement>(`[data-rc="${r}-${c}"]`);
+    next?.focus();
+  };
+  const onKey = (e, r, c)=>{
+    if(e.key==="Enter"){ e.preventDefault(); moveFocus(Math.min(r+1, sheet.rows-1), c); }
+    if(e.key==="Tab"){ e.preventDefault(); const nextC = e.shiftKey? Math.max(0,c-1): Math.min(sheet.cols-1,c+1); moveFocus(r, nextC); }
+    if(e.key==="ArrowDown"){ e.preventDefault(); moveFocus(Math.min(r+1, sheet.rows-1), c); }
+    if(e.key==="ArrowUp"){ e.preventDefault(); moveFocus(Math.max(0, r-1), c); }
+    if(e.key==="ArrowRight"){ e.preventDefault(); moveFocus(r, Math.min(sheet.cols-1, c+1)); }
+    if(e.key==="ArrowLeft"){ e.preventDefault(); moveFocus(r, Math.max(0, c-1)); }
+  };
+  const onFile = (e)=>{
+    const f=e.target.files?.[0]; if(!f) return;
+    const reader=new FileReader();
+    reader.onload=()=> importCSV(String(reader.result||""));
+    reader.readAsText(f); e.target.value="";
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
+        <h2 className="font-semibold text-slate-900 flex items-center gap-2"><TableIcon className="h-5 w-5"/> Sheets</h2>
+        <div className="flex items-center gap-2 text-sm">
+          <input type="file" accept=".csv" onChange={onFile} className="hidden" id="csvimp"/>
+          <label htmlFor="csvimp" className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300 cursor-pointer">Import CSV</label>
+          <button onClick={exportCSV} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300">Export CSV</button>
+          <button onClick={addRow} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300">+ Row</button>
+          <button onClick={addCol} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300">+ Col</button>
+        </div>
+      </div>
+      <div className="bg-white rounded-xl border border-slate-200 overflow-auto">
+        <table ref={tableRef} className="min-w-full text-sm">
+          <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="w-10 px-2 py-1 text-slate-400">#</th>
+              {Array.from({length: sheet.cols}).map((_,c)=>(<th key={c} className="px-2 py-1 text-slate-600 font-semibold">{colLabel(c)}</th>))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({length: sheet.rows}).map((_,r)=>(
+              <tr key={r} className="border-b border-slate-100">
+                <td className="w-10 px-2 py-1 text-slate-400 bg-slate-50">{r+1}</td>
+                {Array.from({length: sheet.cols}).map((_,c)=>(
+                  <td key={c} className="px-1 py-0.5">
+                    <input
+                      data-rc={`${r}-${c}`}
+                      className="w-full px-2 py-1 rounded border border-transparent focus:border-slate-300 focus:bg-white bg-slate-50"
+                      value={sheet.data[r][c]}
+                      onChange={(e)=>setCell(r,c,(e.target).value)}
+                      onKeyDown={(e)=>onKey(e,r,c)}
+                      onPaste={(e)=>onPasteGrid(e,r,c)}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="text-xs text-slate-500">Shortcuts: Enter ↓, Tab → (Shift+Tab ←), Arrow keys navigate. Paste from Excel/Sheets to fill multiple cells.</div>
+    </section>
+  );
+}
+
+// ---------- WBS Editor ----------
+const seedWbs = [
+  { id: uid(), title: "Proposal", level: 0, owner: "", due: inDays(21) },
+  { id: uid(), title: "Capture plan", level: 1, owner: "Chris", due: inDays(20) },
+  { id: uid(), title: "Technical Volume", level: 1, owner: "Mina", due: inDays(14) },
+  { id: uid(), title: "System architecture", level: 2, owner: "Mina", due: inDays(10) },
+  { id: uid(), title: "Cost Volume (sanitized title)", level: 1, owner: "", due: inDays(13) },
+  { id: uid(), title: "Submission", level: 0, owner: "", due: inDays(12) },
+];
+
+function WBSEditor({ items, setItems }) {  
+  function renumber(list){
+    const counters = [];
+    return list.map(it=>{
+      const lvl=it.level||0; counters[lvl]=(counters[lvl]||0)+1; counters.length=lvl+1;
+      return {...it, number: counters.slice(0,lvl+1).join(".")};
+    });
+  }
+  const numbered = renumber(items);
+
+  const addSibling = (index)=>{
+    const base=items[index]; const newItem = { id: uid(), title:"New task", level: base.level, owner:"", due: inDays(14) };
+    const arr=[...items]; arr.splice(index+1,0,newItem); setItems(arr);
+  };
+  const addChild = (index)=>{
+    const base=items[index]; const newItem = { id: uid(), title:"Sub-task", level: (base.level||0)+1, owner:"", due: inDays(14) };
+    const arr=[...items]; arr.splice(index+1,0,newItem); setItems(arr);
+  };
+  const indent = (index)=> setItems((arr)=> arr.map((it,i)=> i===index? {...it, level: Math.min(5,(it.level||0)+1)}: it));
+  const outdent = (index)=> setItems((arr)=> arr.map((it,i)=> i===index? {...it, level: Math.max(0,(it.level||0)-1)}: it));
+  const remove = (index)=> setItems((arr)=> arr.filter((_,i)=> i!==index));
+  const update = (index, patch)=> setItems((arr)=> arr.map((it,i)=> i===index? {...it, ...patch}: it));
+
+  const exportCSV = ()=>{
+    const rows = numbered.map(it=> [it.number, " ".repeat((it.level||0)*2)+it.title, it.owner||"", it.due||""]);
+    const csv = ["WBS,Task,Owner,Due", ...rows.map(r=> r.map(v=> v.includes(",")?(`"${v.split('"').join('""')}"`):v).join(","))].join(`\n`);
+    download("trackops-wbs.csv", csv);
+  };
+
+  const onKey = (e, index)=>{
+    if(e.key==="Enter"){ e.preventDefault(); addSibling(index); }
+    if(e.key==="Tab" && !e.shiftKey){ e.preventDefault(); indent(index); }
+    if(e.key==="Tab" && e.shiftKey){ e.preventDefault(); outdent(index); }
+    if(e.key==="Backspace" && (e.target).value===""){ e.preventDefault(); remove(index); }
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
+        <h2 className="font-semibold text-slate-900 flex items-center gap-2"><ListTree className="h-5 w-5"/> WBS</h2>
+        <div className="flex items-center gap-2 text-sm">
+          <button onClick={()=>setItems((items)=>[...items, { id: uid(), title:"New task", level:0, owner:"", due: inDays(14)}])} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300"><Plus className="h-4 w-4"/> Task</button>
+          <button onClick={exportCSV} className="px-3 py-1.5 rounded-md border bg-white hover:bg-slate-50 border-slate-300"><Download className="h-4 w-4"/> Export CSV</button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr className="text-slate-600"><th className="text-left px-3 py-2 w-24">WBS</th><th className="text-left px-3 py-2">Task</th><th className="text-left px-3 py-2 w-40">Owner</th><th className="text-left px-3 py-2 w-40">Due</th><th className="px-3 py-2 w-44">Actions</th></tr>
+          </thead>
+          <tbody>
+            {numbered.map((it, idx)=>(
+              <tr key={it.id} className="border-b border-slate-100">
+                <td className="px-3 py-1 text-slate-500">{it.number}</td>
+                <td className="px-3 py-1">
+                  <input className="w-full px-2 py-1 rounded border border-slate-300" value={it.title} onKeyDown={(e)=>onKey(e,idx)} onChange={(e)=>update(idx,{title:(e.target).value})} style={{paddingLeft: `${(it.level||0)*16 + 8}px`}}/>
+                </td>
+                <td className="px-3 py-1"><input className="w-full px-2 py-1 rounded border border-slate-300" value={it.owner||""} onChange={(e)=>update(idx,{owner:(e.target).value})}/></td>
+                <td className="px-3 py-1"><input type="date" className="w-full px-2 py-1 rounded border border-slate-300" value={it.due||""} onChange={(e)=>update(idx,{due:(e.target).value})}/></td>
+                <td className="px-3 py-1">
+                  <div className="flex items-center gap-2">
+                    <button onClick={()=>addSibling(idx)} className="px-2 py-1 border rounded">+ Sibling</button>
+                    <button onClick={()=>addChild(idx)} className="px-2 py-1 border rounded">+ Child</button>
+                    <button onClick={()=>indent(idx)} className="px-2 py-1 border rounded">→</button>
+                    <button onClick={()=>outdent(idx)} className="px-2 py-1 border rounded">←</button>
+                    <button onClick={()=>remove(idx)} className="px-2 py-1 border rounded text-red-600">Delete</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="text-xs text-slate-500">Shortcuts: Enter = new sibling · Tab = indent · Shift+Tab = outdent · Backspace on empty = delete.</div>
+    </section>
+  );
+}
+
+// ---------- Keyboard help overlay ----------
+function ShortcutHelp({ onClose }) {
+    return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-2xl p-6" onClick={(e)=>e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="font-semibold text-slate-900 flex items-center gap-2"><Keyboard className="h-5 w-5"/> Keyboard shortcuts</div>
+          <button onClick={onClose} className="text-slate-500">Close</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <div className="font-medium mb-1">Global</div>
+            <ul className="space-y-1 text-slate-700">
+              <li><b>?</b> – Toggle this help</li>
+              <li><b>g</b> then <b>d/o/p/i/c/s/w</b> – Go to Dashboard/Opportunities/Planner/Integrations/Company/Sheets/WBS</li>
+              <li><b>n</b> – Focus Quick Add</li>
+              <li><b>/</b> – Focus Opportunities search</li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-medium mb-1">Sheets</div>
+            <ul className="space-y-1 text-slate-700">
+              <li><b>Enter</b> – Move down</li>
+              <li><b>Tab/Shift+Tab</b> – Move right/left</li>
+              <li><b>Arrows</b> – Navigate cells</li>
+              <li><b>Paste</b> – Multi-cell paste from Excel/Sheets/CSV</li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-medium mb-1">WBS</div>
+            <ul className="space-y-1 text-slate-700">
+              <li><b>Enter</b> – New sibling</li>
+              <li><b>Tab / Shift+Tab</b> – Indent / Outdent</li>
+              <li><b>Backspace</b> (on empty) – Delete row</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 // ---------- Small UI pieces ----------
 function NavButton({ icon, label, active, onClick }) { return (<button onClick={onClick} className={`w-full inline-flex items-center gap-2 px-3 py-2 rounded-md border text-sm ${active?"bg-slate-900 text-white border-slate-900":"bg-white hover:bg-slate-50 border-slate-300"}`}>{icon}{label}</button>); }
 function StatCard({ title, value }) { return (<div className="rounded-xl border border-slate-200 bg-white p-4"><div className="text-slate-500 text-sm">{title}</div><div className="text-2xl font-semibold text-slate-900">{value}</div></div>); }
@@ -488,8 +734,25 @@ function CsvImporter({ onImport }) {
 function CategoryManager({ all, custom, onAdd, onRemove }) {
   const [label, setLabel] = useState("");
   const [color, setColor] = useState("bg-sky-100 text-sky-800 border-sky-200");
-  function slugify(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
-  function submit(){ const key=slugify(label||''); if(!key) return; if(all.some(c=>c.key===key)) return alert('Category exists'); onAdd({ key, label: label.trim(), color }); setLabel(""); }
+
+  function slugify(s) {
+    return String(s).toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+  }
+
+  function submit() {
+    const key = slugify(label || "");
+    if (!key) return;
+    if (all.some(c => c.key === key)) {
+      alert("Category exists");
+      return;
+    }
+    onAdd({ key, label: label.trim(), color });
+    setLabel("");
+  }
+
+  // Pretty list of common Tailwind badge palettes
   const colorChoices = [
     "bg-blue-100 text-blue-800 border-blue-200",
     "bg-green-100 text-green-800 border-green-200",
@@ -501,26 +764,64 @@ function CategoryManager({ all, custom, onAdd, onRemove }) {
     "bg-orange-100 text-orange-800 border-orange-200",
     "bg-teal-100 text-teal-800 border-teal-200",
     "bg-slate-100 text-slate-800 border-slate-200",
+    "bg-sky-100 text-sky-800 border-sky-200",
   ];
-  const defaultKeys = new Set(DEFAULT_CATEGORIES.map(c=>c.key));
+
+  // Derive "defaults" = everything in `all` that's not in `custom`
+  const customKeys = new Set((custom || []).map(c => c.key));
+  const defaultKeys = new Set((all || []).filter(c => !customKeys.has(c.key)).map(c => c.key));
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        {all.map(c=> (
-          <span key={c.key} className={`text-xs px-2 py-1 rounded-full border ${c.color} inline-flex items-center gap-2`}>
+        {all.map(c => (
+          <span
+            key={c.key}
+            className={`text-xs px-2 py-1 rounded-full border ${c.color} inline-flex items-center gap-2`}
+          >
             {c.label}
             {!defaultKeys.has(c.key) && (
-              <button onClick={()=>onRemove(c.key)} className="text-[10px] underline">remove</button>
+              <button
+                onClick={() => onRemove(c.key)}
+                className="text-[10px] underline"
+                type="button"
+              >
+                remove
+              </button>
             )}
           </span>
         ))}
       </div>
+
       <div className="grid md:grid-cols-3 gap-2">
-        <input className="px-3 py-2 rounded-md border border-slate-300 text-sm" placeholder="New category label (e.g., BD)" value={label} onChange={(e)=>setLabel(e.target.value)}/>
-        <select className="px-3 py-2 rounded-md border border-slate-300 text-sm" value={color} onChange={(e)=>setColor(e.target.value)}>
-          {colorChoices.map(c=> <option key={c} value={c}>{c.split(' ')[0].replace('bg-','').replace('-100','')}</option>)}
+        <input
+          className="px-3 py-2 rounded-md border border-slate-300 text-sm"
+          placeholder="New category label (e.g., BD)"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        <select
+          className="px-3 py-2 rounded-md border border-slate-300 text-sm"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+        >
+          {colorChoices.map(c => {
+            const name = c.split(" ")[0].replace("bg-", "").replace("-100", "");
+            return (
+              <option key={c} value={c}>
+                {name}
+              </option>
+            );
+          })}
         </select>
-        <button onClick={submit} className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md border bg-slate-900 text-white border-slate-900 text-sm"><Plus className="h-4 w-4"/>Add Category</button>
+        <button
+          onClick={submit}
+          type="button"
+          className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md border bg-slate-900 text-white border-slate-900 text-sm"
+        >
+          <Plus className="h-4 w-4" />
+          Add Category
+        </button>
       </div>
     </div>
   );
