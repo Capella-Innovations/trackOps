@@ -327,7 +327,7 @@ export default function TrackOpsApp(){
                 <h2 className="font-semibold text-slate-900 mb-3">Quick Add</h2>
                 <div className="grid md:grid-cols-6 gap-3">
                   <input className="px-3 py-2 rounded-md border border-slate-300 text-sm md:col-span-2" 
-                    ref={(el) => { quickAddInputRef.current = el; }}
+                    ref={(el) => { quickAddRef.current = el; }}
                     placeholder={cuiSafe?"Generic title (no CUI)":"Title"} 
                     value={newDeadline.title} 
                     onChange={(e)=>setNewDeadline({...newDeadline, title:e.target.value})}
@@ -587,7 +587,7 @@ function colLabel(n){
   let s=""; n++; while(n){ const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26);} return s;
 }
 function SheetsLite({ sheet, setSheet }) {
-  const tableRef = useRef<HTMLTableElement|null>(null);
+  const tableRef = useRef(null);
   const setCell = (r,c,val)=> setSheet((s)=>{ const d=s.data.map((row)=>row.slice()); d[r][c]=val; return {...s, data:d}; });
   const addRow = ()=> setSheet((s)=> ({...s, rows:s.rows+1, data:[...s.data, Array.from({length:s.cols},()=>"")] }));
   const addCol = ()=> setSheet((s)=> ({...s, cols:s.cols+1, data:s.data.map((row)=>[...row,""])}));
