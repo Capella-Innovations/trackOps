@@ -470,7 +470,7 @@ function makeBlankSheet(rows, cols){
 function colLabel(n){
   let s=""; n++; while(n){ const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26);} return s;
 }
-function SheetsLite({ sheet, setSheet }, setSheet){
+function SheetsLite({ sheet, setSheet }) {
   const tableRef = useRef<HTMLTableElement|null>(null);
   const setCell = (r,c,val)=> setSheet((s)=>{ const d=s.data.map((row)=>row.slice()); d[r][c]=val; return {...s, data:d}; });
   const addRow = ()=> setSheet((s)=> ({...s, rows:s.rows+1, data:[...s.data, Array.from({length:s.cols},()=>"")] }));
